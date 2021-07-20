@@ -104,7 +104,19 @@ try
     {
         RETURN_HR_IF(E_FAIL, State.ReadOffset > Descriptor.InputSize);
 
-        ULONG const cbReadSize = Descriptor.InputSize - State.ReadOffset;
+        ULONG cbReadSize = Descriptor.InputSize - State.ReadOffset;
+
+        // We need to limit the read buffer to something reasonable, unless we want to consume
+        // the user's entire system memory when someone calls WriteFile() with a huge buffer.
+        //
+        // However we can only limit CONSOLE_IO_RAW_WRITE messages at the moment, which are
+        // sent for WriteFile() calls on the console handle. Other messages like
+        // CONSOLE_IO_USER_DEFINED cannot be read partially without loosing data.
+        static constexpr ULONG maxReadSize = 16ul * 1024 * 1024;
+        if (Descriptor.Function == CONSOLE_IO_RAW_WRITE && cbReadSize > maxReadSize)
+        {
+            cbReadSize = maxReadSize;
+        }
 
         _inputBuffer.resize(cbReadSize);
 
